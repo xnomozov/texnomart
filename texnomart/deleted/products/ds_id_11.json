@@ -1,0 +1,11 @@
+{
+    "id": 11,
+    "name": "ds",
+    "description": "saaaaaaaaa",
+    "price": 12.0,
+    "images": [],
+    "category": "Telefon",
+    "discount": 1.0,
+    "discounted_price": 11.879999999999999,
+    "monthly_pay": "0.5 sum / 24 months"
+}
