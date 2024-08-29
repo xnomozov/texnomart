@@ -1,12 +1,10 @@
 import json
-
 from django.db.models.signals import post_save, pre_delete, post_delete
 from django.dispatch import receiver
 from django.core.mail import send_mail
 from django.conf import settings
 from .models import Product, Category
 from django.contrib.auth.models import User
-
 import os
 
 
@@ -32,7 +30,7 @@ def category_post_save(sender, instance, created, **kwargs):
         subject = 'Hello from Texnomart!'
         message = f'Category {instance.title} has been created recently.'
         email_from = settings.EMAIL_HOST_USER
-        email_to = ['vohidjonboyqoziyev@gmail.com']
+        email_to = ['jasurmavlonov24@gmail.com']
         try:
             send_mail(subject, message, email_from, email_to, fail_silently=False)
         except Exception as e:

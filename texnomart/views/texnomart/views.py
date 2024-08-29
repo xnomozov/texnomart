@@ -3,10 +3,10 @@ from django.core.cache import cache
 from django.db.models import Prefetch, Avg, Count, Sum
 from rest_framework import status
 from rest_framework.authentication import TokenAuthentication
-from rest_framework.exceptions import NotFound
+
 from rest_framework.response import Response
 from rest_framework.generics import GenericAPIView, ListCreateAPIView, ListAPIView, \
-    CreateAPIView, RetrieveUpdateAPIView, get_object_or_404  # Create your views here.
+    RetrieveUpdateAPIView, get_object_or_404  # Create your views here.
 from rest_framework_simplejwt.authentication import JWTAuthentication
 
 from texnomart.models import Product, Category, Image, Comment, Attribute, AttributeKey, AttributeValue
@@ -33,14 +33,14 @@ class AllProductView(ListAPIView):
 
         request = self.request
         if request.user.is_authenticated:
-            # Prefetch only the likes for the authenticated user
+
             user_likes = Prefetch(
                 'user_likes',
                 queryset=User.objects.filter(id=request.user.id),
                 to_attr='user_liked'
             )
             queryset = queryset.prefetch_related(user_likes)
-        cache.set(cache_key, queryset, timeout=60 * 15)  # Cache timeout in seconds
+        cache.set(cache_key, queryset, timeout=60 * 15)
         return queryset
 
 
@@ -141,14 +141,14 @@ class ProductDetailView(GenericAPIView):
 
     def get(self, request, *args, **kwargs):
         user = self.request.user
-        product_id = self.kwargs.get('pk')  # Extract the primary key from the URL
+        product_id = self.kwargs.get('pk')
         product = self.get_queryset().filter(pk=product_id).prefetch_related(
             Prefetch(
                 'user_likes',
                 queryset=User.objects.filter(id=user.id),
-                to_attr='user_likes_prefetched'  # Use a unique attribute name
+                to_attr='user_likes_prefetched'
             )
-        ).first()  # Retrieve the specific product instance
+        ).first()
 
         if product is None:
             return Response({'detail': 'Not found.'}, status=404)
