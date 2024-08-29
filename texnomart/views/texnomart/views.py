@@ -2,15 +2,19 @@ from django.contrib.auth.models import User
 from django.core.cache import cache
 from django.db.models import Prefetch, Avg, Count, Sum
 from rest_framework import status
+from rest_framework.authentication import TokenAuthentication
+from rest_framework.exceptions import NotFound
 from rest_framework.response import Response
 from rest_framework.generics import GenericAPIView, ListCreateAPIView, ListAPIView, \
     CreateAPIView, RetrieveUpdateAPIView, get_object_or_404  # Create your views here.
+from rest_framework_simplejwt.authentication import JWTAuthentication
+
 from texnomart.models import Product, Category, Image, Comment, Attribute, AttributeKey, AttributeValue
 from texnomart.serializers import ProductSerializer, CategorySerializer, ProductDetailSerializer, \
     AttributeKeySerializer, \
     AttributeValueSerializer
 from django_filters.rest_framework import DjangoFilterBackend
-
+from texnomart.permissions import IsSuperAdminOrReadOnly
 from rest_framework import filters
 
 
@@ -18,6 +22,7 @@ class AllProductView(ListAPIView):
     serializer_class = ProductSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['name', ]
+    authentication_classes = [JWTAuthentication, TokenAuthentication]
 
     def get_queryset(self):
         cache_key = 'all_products'
@@ -44,6 +49,7 @@ class CategoryView(GenericAPIView):
     serializer_class = CategorySerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['title', ]
+    authentication_classes = [JWTAuthentication, TokenAuthentication]
 
     def get(self, request, *args, **kwargs):
         cache_key = 'category_list'
@@ -77,6 +83,7 @@ class AddCategoryView(GenericAPIView):
 class DeleteCategoryView(GenericAPIView):
     queryset = Category.objects.all()  # No need for annotation here
     serializer_class = CategorySerializer
+    permission_classes = [IsSuperAdminOrReadOnly]
 
     def get(self, request, *args, **kwargs):
         category = get_object_or_404(Category, slug=self.kwargs['slug'])
@@ -123,21 +130,31 @@ class CategoryProductsView(GenericAPIView):
         return Response(data)
 
 
-class ProductDetailView(RetrieveUpdateAPIView):
+class ProductDetailView(GenericAPIView):
+    queryset = Product.objects.prefetch_related(
+        Prefetch('images', queryset=Image.objects.filter(is_primary=True)),
+        Prefetch('comments', queryset=Comment.objects.select_related('user')),
+        Prefetch('attributes',
+                 queryset=Attribute.objects.select_related('key').select_related('value'))
+    ).annotate(rating=Avg('comments__rating'))
     serializer_class = ProductDetailSerializer
 
-    def get_queryset(self):
+    def get(self, request, *args, **kwargs):
         user = self.request.user
-        return Product.objects.prefetch_related(
-            Prefetch('images', queryset=Image.objects.filter(is_primary=True)),
-            Prefetch('comments', queryset=Comment.objects.select_related('user')),
-            Prefetch('attributes', queryset=Attribute.objects.all()),
+        product_id = self.kwargs.get('pk')  # Extract the primary key from the URL
+        product = self.get_queryset().filter(pk=product_id).prefetch_related(
             Prefetch(
                 'user_likes',
                 queryset=User.objects.filter(id=user.id),
-                to_attr='user_likes'  # Ensure the attribute name is consistent
+                to_attr='user_likes_prefetched'  # Use a unique attribute name
             )
-        ).annotate(rating=Avg('comments__rating'))
+        ).first()  # Retrieve the specific product instance
+
+        if product is None:
+            return Response({'detail': 'Not found.'}, status=404)
+
+        serializer = self.get_serializer(product)
+        return Response(serializer.data)
 
 
 class DeleteProductView(GenericAPIView):

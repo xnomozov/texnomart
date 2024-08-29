@@ -1,8 +1,9 @@
-from email.mime import image
+from django.contrib.auth.models import User
 
-from django.db.models import Sum, Avg, Count
+from rest_framework.exceptions import ValidationError
+
 from rest_framework import serializers
-from .models import Product, Category, Image, Attribute, AttributeValue, AttributeKey
+from .models import Product, Category, AttributeValue, AttributeKey
 
 
 class ProductSerializer(serializers.ModelSerializer):
@@ -34,22 +35,10 @@ class CategorySerializer(serializers.ModelSerializer):
     product_count = serializers.IntegerField(source='products_count', read_only=True)
     total_price_of_products = serializers.IntegerField(source='products_price_sum', read_only=True)
 
-    # def get_total_price_of_products(self, obj):
-    #     total_price = obj.products.aggregate(Sum('price'))['price__sum']
-    #     if total_price:
-    #         return f'{total_price} sum'
-    #     return '0 sum'
-
-    # def get_product_count(self, obj):
-    #     # product_count = Category.objects.aggregate(products_count=Count('products'))['products_count']
-    #     product_count = obj.products.count()
-    #     return product_count
-
     def get_image_of_category(self, obj):
         request = self.context.get('request')
-        image = obj.image  # Access the image directly from the object
-        if image:
-            return request.build_absolute_uri(image.url)
+        if request and obj.image:
+            return request.build_absolute_uri(obj.image.url)
         return None
 
     class Meta:
@@ -76,7 +65,7 @@ class ProductDetailSerializer(serializers.ModelSerializer):
         return [request.build_absolute_uri(img.image.url) for img in images] if images else []
 
     def get_user_likes(self, obj):
-        return bool(obj.user_likes)  # Assuming user_likes is correctly prefetched
+        return bool(obj.user_likes_prefetched)
 
     def get_comments(self, obj):
         comments = obj.comments.select_related('user').all()
@@ -109,3 +98,42 @@ class AttributeValueSerializer(serializers.ModelSerializer):
     class Meta:
         model = AttributeValue
         fields = ['id', 'value', 'created_at', ]
+
+
+class UserLoginSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(required=True)
+    password = serializers.CharField(required=True)
+
+    class Meta:
+        model = User
+        fields = ["id", "username", "password"]
+
+
+class UserRegisterSerializer(serializers.ModelSerializer):
+    password2 = serializers.CharField(write_only=True)
+
+    class Meta:
+        model = User
+        fields = ["id", "username", "first_name", "last_name", "email", "password", "password2"]
+
+    def validate_username(self, username):
+        if User.objects.filter(username=username).exists():
+            raise ValidationError({"detail": "User already exists!"})
+        return username
+
+    def validate(self, data):
+        if data['password'] != data['password2']:
+            raise ValidationError({"message": "Both passwords must match!"})
+
+        if User.objects.filter(email=data['email']).exists():
+            raise ValidationError({"message": "Email already taken!"})
+
+        return data
+
+    def create(self, validated_data):
+        # Remove password2 as it is not needed for user creation
+        validated_data.pop('password2')
+
+        # Create the user
+        user = User.objects.create_user(**validated_data)
+        return user

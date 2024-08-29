@@ -1,5 +1,5 @@
 from django.urls import path
-
+from root import custom_obtain_view
 from texnomart.views.texnomart import views
 
 urlpatterns = [
@@ -21,5 +21,10 @@ urlpatterns = [
     # ATTRIBUTES
     path('attribute-key/', views.AttributeKeyView.as_view(), name='attribute-key'),
     path('attribute-value/', views.AttributeValueView.as_view(), name='attribute-value'),
+
+    # auth
+    path("login/", custom_obtain_view.LoginView.as_view(), name="user_login"),
+    path("register/", custom_obtain_view.RegisterView.as_view(), name="user_register"),
+    path("logout/", custom_obtain_view.LogoutView.as_view(), name="user_logout")
 
 ]
